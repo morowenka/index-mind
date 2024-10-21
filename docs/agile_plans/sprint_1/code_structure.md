@@ -21,17 +21,16 @@ indexmind/
 |
 ├───── embeddings/              # Работа с эмбеддингами через Hugging Face модели  
 |        |-- embedding_model_loader.py        
+|├── frontend/                   # Фронтенд приложения (Mac App)
+│   ├── mac_app/                # Проект Xcode для Mac-приложения на Swift/Cocoa
+│   │   └─ IndexMindApp.xcodeproj  
+│   │   └─ src/
+│       └─ AppDelegate.swift    
+│       └─ MainViewController.swift 
+│       └─ SearchViewController.swift  
 |
 └──── tests/
-    └──── unit_tests            # Юнит-тесты для каждого модуля
-
-frontend_mac_app/
-├── IndexMindApp.xcodeproj      # Проект Xcode для Mac-приложения на Swift/Cocoa
-└─ src/
-      └─ AppDelegate.swift       # Главный файл приложения macOS  
-      └─ MainViewController.swift        
-      └─ SearchViewController.swift    
-                                   
+    ├──── unit_tests            # Юнит-тесты для каждого модуля
 
 scripts/
 ├──────── setup.sh                    
@@ -39,10 +38,16 @@ scripts/
 |
 
 docs/
-├──────── agile_plans/
-├──────── README.md                    
+├──────── agile_plans/           # Планы разработки (Agile)
+|        |-- sprint_1/
+|               |-- code_structure.md 
+|               |-- sprint_1.md       
+|               |-- core_plan.md      
 |
-
+├──────── usage_docs/            # Документация по использованию системы
+|        |-- installation.md     # Инструкция по установке приложения.
+|        |-- usage_examples.md      # Примеры использования.
+|
 .gitignore                            
 
 requirements.txt                      
