@@ -5,3 +5,4 @@ pyobjc-framework-Cocoa
 python-dotenv
 torch
 pydantic
+farm-haystack

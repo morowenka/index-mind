@@ -6,5 +6,7 @@ class DatabaseConfig(BaseSettings):
     CLICKHOUSE_PORT: int = 9000
     CLICKHOUSE_DB: str = "indexmind"
     
+    CLICKHOUSE_DOCUMENTS_TABLE: str = "documents_metadata"
+    
     class Config:
         env_prefix = 'DB_'

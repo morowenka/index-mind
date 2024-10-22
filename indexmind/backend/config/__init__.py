@@ -1,11 +1,10 @@
-# config/__init__.py
+import os
+from pathlib import Path
+
+BACKEND_PATH = Path(os.path.abspath(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../')))
+SRC_PATH = BACKEND_PATH / "src"
+
 
 from .main_config import Settings
 
-
 settings = Settings()
-
-CLICKHOUSE_HOST = settings.CLICKHOUSE_HOST
-CLICKHOUSE_PORT = settings.CLICKHOUSE_PORT
-FAISS_INDEX_PATH = settings.FAISS_INDEX_PATH
-CLICKHOUSE_DB = settings.CLICKHOUSE_DB

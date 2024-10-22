@@ -1,22 +1,37 @@
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-import torch
+from haystack.document_stores import InMemoryDocumentStore 
+from haystack.nodes import DensePassageRetriever 
+from haystack.schema import Document 
+
+from config import settings
+from utils.logger import logger
 
 
-class EmbeddingGenerator:
-    
+class DocumentEmbeddingGenerator:
     def __init__(self):
-        model_name_or_path="sentence-transformers/all-MiniLM-L6-v2"
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name_or_path)
-        self.model = AutoModelForSeq2SeqLM.from_pretrained(model_name_or_path).eval()
+        """Инициализация InMemoryDocumentStore + Retriever"""
+        self.document_store = InMemoryDocumentStore(
+            embedding_dim=settings.RETRIEVER_EMBEDDINGS_DIM
+        )
+        self.retriever = DensePassageRetriever(
+            document_store=self.document_store ,
+            query_embedding_model=settings.RETRIEVER_QUERY_EMBEDDINGS_MODEL,
+            passage_embedding_model=settings.RETRIEVER_PASSAGE_EMBEDDINGS_MODEL,
+            use_gpu=(settings.USE_GPU & settings.RETRIEVER_USE_GPU)
+        )
+        self.document_store.update_embeddings(self.retriever)
+          
+    def add_document_with_embedding(
+        self,
+        content: str,
+        doc_id: str,
+        meta: dict = None
+    ):
+        """Добавление нового документа + его embedding"""
+        document_to_add = [Document(content=content, id=doc_id, meta=meta)]
+        try:
+            self.document_store.write_documents(document_to_add)
+            return True
+        except Exception as e:
+            logger.warning(f"Ошибка при индексации документа {doc_id}: {e}")
+            return False
 
-    def generate_embeddings(self,text:str)->list[float]:
-      inputs=self.tokenizer(text,padding=True,truncation=True,max_length=512 ,return_tensors='pt')
-      with torch.no_grad():
-          embeddings=self.model(**inputs).last_hidden_state.mean(dim=-1).squeeze().tolist() 
-        
-      return embeddings
-      
-      
-if __name__=="__main__":
-   generator_model_instance_ = EmbeddingGenerator()
