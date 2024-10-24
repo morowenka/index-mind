@@ -5,6 +5,4 @@ BACKEND_PATH = Path(os.path.abspath(os.path.join(os.path.dirname(os.path.realpat
 SRC_PATH = BACKEND_PATH / "src"
 
 
-from .main_config import Settings
-
-settings = Settings()
+from .app import settings

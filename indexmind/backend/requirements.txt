@@ -1,3 +1,4 @@
+numpy==1.26.0
 clickhouse-driver
 haystack
 transformers
@@ -5,4 +6,12 @@ pyobjc-framework-Cocoa
 python-dotenv
 torch
 pydantic
-farm-haystack
+nomkl
+farm-haystack[docstores]
+farm-haystack[faiss]
+fastapi
+uvicorn
+faiss-cpu
+farm-haystack[preprocessing]
+farm-haystack[inference]
+sentence-transformers
