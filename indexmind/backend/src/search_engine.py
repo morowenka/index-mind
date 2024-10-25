@@ -8,6 +8,9 @@ class SearchEngine:
         self.document_retriever = DocumentRetriever()
 
     def search(self, query: str, n: int = 5, filters: dict = None):
+        if filters is None:
+            filters = {}
+        filters['status'] = ['indexed']
         logger.debug(f"SearchEngine.search called with query: '{query}', n: {n}, filters: {filters}")
         logger.debug(f"Total documents in document_store: {self.document_retriever.document_store.get_document_count()}")
 
@@ -19,16 +22,9 @@ class SearchEngine:
             formatted_result = {
                 'content': result.content,
                 'metadata': {
-                    'doc_id': doc_id,
-                    'file_hash': metadata.get('file_hash'),
-                    'file_path': metadata.get('file_path'),
-                    'start_idx': metadata.get('start_idx'),
-                    'end_idx': metadata.get('end_idx'),
-                    'creation_time': metadata.get('creation_time'),
-                    'modification_time': metadata.get('modification_time'),
-                    'type': metadata.get('type'),
+                    **metadata
                 },
-                'score': result.score
+                'score': float(result.score)
             }
             formatted_results.append(formatted_result)
 

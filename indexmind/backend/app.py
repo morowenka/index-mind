@@ -1,6 +1,6 @@
 # indexmind/backend/app.py
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from src.index_manager import IndexManager
@@ -10,18 +10,33 @@ app = FastAPI()
 index_manager = IndexManager()
 search_engine = SearchEngine()
 
-class IndexRequest(BaseModel):
-    file_paths: List[str]
+class AddDocumentsRequest(BaseModel):
+    file_paths: List[str] # not Paths !
+
+class UpdateIndexesRequest(BaseModel):
+    # You can add parameters if needed, e.g., specific files to update
+    pass
 
 class SearchRequest(BaseModel):
     query: str
     n: int = 5
-    filters: Optional[Dict[str, Any]] = None
+    filters: Optional[Dict[List, Any]] = None
 
-@app.post("/index")
-def index_documents(request: IndexRequest):
-    index_manager.index(request.file_paths)
-    return {"message": "Indexing completed"}
+@app.post("/add_indexes")
+def add_indexes(request: AddDocumentsRequest):
+    try:
+        index_manager.add_indexes(request.file_paths)
+        return {"message": "Documents added to indexing queue"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
+@app.post("/update_indexes")
+def update_indexes(request: UpdateIndexesRequest):
+    try:
+        index_manager.update_indexes()
+        return {"message": "Indexing process completed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e)) from e
 
 @app.post("/search")
 def search(request: SearchRequest):

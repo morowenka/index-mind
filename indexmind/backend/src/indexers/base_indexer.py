@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
-
+from typing import List
 
 class BaseIndexer(ABC):
     @abstractmethod
-    def index(self, file_path: str):
+    def add_indexes(self, file_paths: List[str]):
+        pass
+    
+    @abstractmethod
+    def update_indexes(self):
         pass
