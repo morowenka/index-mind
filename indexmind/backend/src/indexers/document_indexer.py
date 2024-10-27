@@ -2,27 +2,23 @@
 # TODO: сделать деление на блоки поумнее
 # TODO: изменения проверять только у тех, которые не добавлялись только что
 from src.indexers.base_indexer import BaseIndexer
+from haystack.document_stores.types import DuplicatePolicy
 from src.utils.logger import logger
 from config import settings
-from haystack.nodes import PreProcessor
-from haystack.schema import Document
+from haystack import Document
 import os
 import re
 import uuid
 import time
 from typing import List, Dict, Optional
-from src.retrievers.document_retriever import document_store, retriever
+from src.retrievers.document_retriever import document_store, retriever, document_embedder
 from src.utils.helpers import hash_content
 
 class DocumentIndexer(BaseIndexer):
     def __init__(self):
         self.document_store = document_store
         self.retriever = retriever
-        self.preprocessor = PreProcessor(
-            split_length=settings.DOC_INDEXER_PREPROCESSOR_MAX_WORDS_SPLIT_LENGTH,
-            split_overlap=settings.DOC_INDEXER_PREPROCESSOR_SPLIT_OVERLAP,
-            split_respect_sentence_boundary=True
-        )
+        self.document_embedder = document_embedder
 
     def add_indexes(self, file_paths: List[str]):
         """
@@ -33,6 +29,7 @@ class DocumentIndexer(BaseIndexer):
         
         for file_path in file_paths:
             try:
+                logger.debug(f"Processing {file_path}...")
                 with open(file_path, 'r', encoding='utf-8') as f:
                     content = f.read()
                 metadata = self._get_file_metadata(file_path, content)
@@ -41,19 +38,21 @@ class DocumentIndexer(BaseIndexer):
                     settings.DOC_INDEXER_PREPROCESSOR_MAX_WORDS_SPLIT_LENGTH,
                     settings.DOC_INDEXER_PREPROCESSOR_SPLIT_OVERLAP
                 )
-                documents = self._create_documents(
+                pending_documents = self._create_pending_documents_without_embeddings(
                     blocks,
                     file_path,
                     metadata
                 )
-                documents_to_add.extend(documents)
-                logger.debug(f"Prepared {len(documents)} documents from file {file_path}.")
+                # for doc in pending_documents:
+                #     doc.embedding = [0] * settings.DOCUMENT_STORE_EMBEDDINGS_DIM
+                documents_to_add.extend(pending_documents)
+                logger.debug(f"Prepared {len(pending_documents)} documents from file {file_path}.")
             except Exception as e:
                 logger.error(f"Failed to add file {file_path} to indexing queue: {e}")
         
         if documents_to_add:
-            # todo
-            self.document_store.write_documents(documents_to_add)
+            print(documents_to_add)
+            self.document_store.write_documents(documents_to_add, policy=DuplicatePolicy.OVERWRITE)
             logger.debug(f"Added {len(documents_to_add)} documents to the document store with status 'pending'.")
 
     def update_indexes(self):
@@ -72,11 +71,13 @@ class DocumentIndexer(BaseIndexer):
         """
         Processes all documents marked as 'pending' by updating their embeddings and marking them as 'indexed'.
         """
-        pending_documents = self.document_store.get_all_documents(
-            filters={
-                "status": ["pending"],
-                "content_type": ["text"],
-                "source_type": ["document"]
+        pending_documents = self.document_store.filter_documents(filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.status", "operator": "==", "value": "pending"},
+                    {"field": "meta.content_type", "operator": "==", "value": "text"},
+                    {"field": "meta.source_type", "operator": "==", "value": "document"}
+                ]
             }
         )
         logger.debug(f"Found {len(pending_documents)} pending documents to index.")
@@ -85,48 +86,30 @@ class DocumentIndexer(BaseIndexer):
             logger.debug("No pending documents to process.")
             return
 
-        # Update embeddings in bulk
-        try:
-            self.document_store.update_embeddings(
-                retriever=self.retriever,
-                filters={
-                    "status": ["pending"],
-                    "content_type": ["text"],
-                    "source_type": ["document"]
-                },
-                update_existing_embeddings=False
-            )
-            # Update status to 'indexed'
-            for doc in pending_documents:
-                doc.meta['status'] = 'indexed'
-            self.document_store.write_documents(
-                pending_documents
-            )
-            self.document_store.save(
-                index_path=settings.DOCUMENT_FAISS_INDEX_PATH,
-                config_path=settings.DOCUMENT_FAISS_CONFIG_PATH
-            )
-            logger.debug("Updated embeddings for all pending documents.")
-        except Exception as e:
-            logger.error(f"Failed to process pending documents: {e}")
+        documents_with_embeddings = self.document_embedder.run(pending_documents).get("documents")
+        for doc in documents_with_embeddings:
+            doc.meta['status'] = 'ready'
+
+        self.document_store.write_documents(documents_with_embeddings, policy=DuplicatePolicy.OVERWRITE)
+        logger.debug(f"Updated embeddings for {len(documents_with_embeddings)} pending documents.")
 
     def _reindex_changed_files(self):
         """
         Re-indexes documents from files whose content has changed based on hash comparison.
         """
-        all_documents = self.document_store.get_all_documents()
-        unique_file_paths = list(
-            {
-                doc.meta.get("file_path") for doc in all_documents if \
-                    doc.meta.get("file_path") \
-                    and doc.meta.get("source_type")=="document" \
-                    and doc.meta.get("content_type")=="text"
+        all_documents = self.document_store.filter_documents(filters={
+                "operator": "AND",
+                "conditions": [
+                    {"field": "meta.content_type", "operator": "==", "value": "text"},
+                    {"field": "meta.source_type", "operator": "==", "value": "document"}
+                ]
             }
         )
+        unique_file_paths = list({doc.meta.get("file_path") for doc in all_documents if doc.meta.get("file_path")})
+        
         logger.debug(f"Checking {len(unique_file_paths)} unique document files for changes.")
         for file_path in unique_file_paths:
             try:
-                # TODO: хэшировать не контент, а весь файл (чтобы метаданные тоже хэшировались)
                 with open(file_path, 'r', encoding='utf-8') as f:
                     current_content = f.read()
                 current_hash = hash_content(current_content)
@@ -148,20 +131,35 @@ class DocumentIndexer(BaseIndexer):
             settings.DOC_INDEXER_PREPROCESSOR_MAX_WORDS_SPLIT_LENGTH,
             settings.DOC_INDEXER_PREPROCESSOR_SPLIT_OVERLAP
         )
-        new_documents = self._create_documents(blocks, file_path, metadata)
+        new_documents_without_embeddings = self._create_pending_documents_without_embeddings(
+            blocks,
+            file_path,
+            metadata
+        )
+        new_documents: List[Document] = self.document_embedder.run(new_documents_without_embeddings).get("documents")
         
-        existing_docs = self.document_store.get_all_documents(filters={"file_path": [file_path]})
+        existing_docs = self.document_store.filter_documents(
+            filters={
+                "field": "meta.file_path",
+                "operator": "==",
+                "value": file_path
+            }
+        )
         num_existing = len(existing_docs)
         num_new = len(new_documents)
-        documents_to_update = []
         
+        documents_to_update = []
         # Update existing documents
         for i, new_doc in enumerate(new_documents):
             if i < num_existing:
                 existing_doc = existing_docs[i]
-                existing_doc.content = new_doc.content
-                existing_doc.meta = new_doc.meta
-                documents_to_update.append(existing_doc)
+                updated_doc = Document(
+                    content=new_doc.content,
+                    id=existing_doc.id, # save only existing ID
+                    meta=new_doc.meta,
+                    embedding=new_doc.embedding
+                )
+                documents_to_update.append(updated_doc)
             else:
                 documents_to_update.append(new_doc)
         
@@ -169,35 +167,13 @@ class DocumentIndexer(BaseIndexer):
         if num_existing > num_new:
             excess_docs = existing_docs[num_new:]
             excess_ids = [doc.id for doc in excess_docs]
-            self.document_store.delete_documents(ids=excess_ids)
+            self.document_store.delete_documents(document_ids=excess_ids)
             logger.debug(f"Deleted {len(excess_ids)} excess documents for file {file_path}.")
 
         # Bulk write updated and new documents
         if documents_to_update:
-            self.document_store.write_documents(
-                documents_to_update
-            )
+            self.document_store.write_documents(documents_to_update, policy=DuplicatePolicy.OVERWRITE)
             logger.debug(f"Updated/Added {len(documents_to_update)} documents for file {file_path}.")
-
-            # Update embeddings in bulk
-            try:
-                self.document_store.update_embeddings(
-                    retriever=self.retriever,
-                    filters={
-                        "file_path": [file_path],
-                        "content_type": ["text"],
-                        "source_type": ["document"],
-                        "status": ["pending"]
-                    },
-                    update_existing_embeddings=False
-                )
-                self.document_store.save(
-                    index_path=settings.DOCUMENT_FAISS_INDEX_PATH,
-                    config_path=settings.DOCUMENT_FAISS_CONFIG_PATH
-                )
-                logger.debug(f"Updated embeddings for {len(documents_to_update)} documents of file {file_path}.")
-            except Exception as e:
-                logger.error(f"Failed to update embeddings for file {file_path}: {e}")
 
     def _get_file_metadata(self, file_path: str, content: str) -> Dict[str, str]:
         """
@@ -215,7 +191,13 @@ class DocumentIndexer(BaseIndexer):
         """
         Determines whether a file has changed by comparing its current hash with the stored hash.
         """
-        existing_docs = self.document_store.get_all_documents(filters={"file_path": [file_path]})
+        existing_docs = self.document_store.filter_documents(
+            filters={
+                "field": "meta.file_path",
+                "operator": "==",
+                "value": file_path
+            }
+        )
         if not existing_docs:
             logger.debug(f"No existing documents found for file {file_path}. It will be indexed.")
             return True  # File is new and needs indexing
@@ -267,7 +249,12 @@ class DocumentIndexer(BaseIndexer):
 
         return blocks
 
-    def _create_documents(self, blocks: List[Dict], file_path: str, metadata: Dict[str, str]) -> List[Document]:
+    def _create_pending_documents_without_embeddings(
+        self,
+        blocks: List[Dict],
+        file_path: str,
+        metadata: Dict[str, str]
+    ) -> List[Document]:
         """
         Creates Document objects from blocks of text with the appropriate metadata.
         """
@@ -285,6 +272,10 @@ class DocumentIndexer(BaseIndexer):
                 "source_type": "document",
                 "status": "pending"  # Initially mark as pending
             }
-            new_doc = Document(content=text_chunk, id=str(uuid.uuid4()), meta=doc_meta)
+            new_doc = Document(
+                content=text_chunk,
+                id=str(uuid.uuid4()),
+                meta=doc_meta
+            )
             documents.append(new_doc)
         return documents

@@ -6,6 +6,7 @@ from src.indexers.image_indexer import ImageIndexer
 from src.utils.logger import logger
 from schemas.file_types import DocumentFile, ImageFile
 from typing import List
+from config import settings
 
 FILE_TYPES = [DocumentFile, ImageFile]
 

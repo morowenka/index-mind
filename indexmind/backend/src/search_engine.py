@@ -8,25 +8,25 @@ class SearchEngine:
         self.document_retriever = DocumentRetriever()
 
     def search(self, query: str, n: int = 5, filters: dict = None):
-        if filters is None:
-            filters = {}
-        filters['status'] = ['indexed']
+        # if filters is None:
+        #     filters = {}
+        # filters['status'] = ['ready']
         logger.debug(f"SearchEngine.search called with query: '{query}', n: {n}, filters: {filters}")
-        logger.debug(f"Total documents in document_store: {self.document_retriever.document_store.get_document_count()}")
+        logger.debug(f"Total documents in document_store: {self.document_retriever.document_store.count_documents()}")
 
-        results = self.document_retriever.retrieve(query, top_k=n, filters=filters)
-        formatted_results = []
-        for result in results:
-            doc_id = result.id
-            metadata = result.meta
-            formatted_result = {
-                'content': result.content,
+        retrieved_documents = self.document_retriever.retrieve(query, top_k=n, filters=filters)
+        
+        formatted_retrieved_documents = []
+        for document in retrieved_documents:
+            formatted_document = {
+                'id': document.id,
+                'content': document.content,
                 'metadata': {
-                    **metadata
+                    **document.meta
                 },
-                'score': float(result.score)
+                'score': float(document.score)
             }
-            formatted_results.append(formatted_result)
+            formatted_retrieved_documents.append(formatted_document)
 
-        logger.debug(f"Formatted results: {formatted_results}")
-        return formatted_results
+        logger.debug(f"Formatted results: {formatted_retrieved_documents}")
+        return formatted_retrieved_documents

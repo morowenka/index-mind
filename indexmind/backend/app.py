@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional, Dict, Any
 from src.index_manager import IndexManager
 from src.search_engine import SearchEngine
+import traceback
 
 app = FastAPI()
 index_manager = IndexManager()
@@ -28,7 +29,8 @@ def add_indexes(request: AddDocumentsRequest):
         index_manager.add_indexes(request.file_paths)
         return {"message": "Documents added to indexing queue"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        error_trace = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=error_trace) from e
 
 @app.post("/update_indexes")
 def update_indexes(request: UpdateIndexesRequest):
@@ -36,7 +38,8 @@ def update_indexes(request: UpdateIndexesRequest):
         index_manager.update_indexes()
         return {"message": "Indexing process completed"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e)) from e
+        error_trace = traceback.format_exc()
+        raise HTTPException(status_code=500, detail=error_trace) from e
 
 @app.post("/search")
 def search(request: SearchRequest):
