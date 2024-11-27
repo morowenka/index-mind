@@ -8,11 +8,17 @@ pyobjc-framework-Cocoa
 
 fastapi
 uvicorn
+uvicorn[standard]
 
 sentence-transformers
 torch
 transformers
+accelerate
 
 haystack_ai
 
 pinecone-haystack
+
+langchain
+langchain-community
+gigachat

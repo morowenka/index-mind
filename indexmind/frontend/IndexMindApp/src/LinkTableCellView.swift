@@ -18,8 +18,8 @@ class LinkTableCellView: NSTableCellView {
     }
 
     @objc func openFile() {
-        if let filePath = linkTextField?.stringValue {
-            NSWorkspace.shared.openFile(filePath)
+        if let filePath = linkTextField?.stringValue, let fileURL = URL(string: filePath) {
+            NSWorkspace.shared.open(fileURL)
         }
     }
 }

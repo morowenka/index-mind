@@ -1,4 +1,4 @@
-# /config/app.py
+# indexmind/backend/config/app.py
 
 from pydantic import BaseSettings
 import logging
@@ -9,13 +9,20 @@ class LoggerConfig(BaseSettings):
 
 class AppConfig(BaseSettings):
     USE_GPU: bool = False
-    
-    
+
+class LLMConfig(BaseSettings):
+    LLM_MODEL_TYPE: Literal["openai", "huggingface", "gigachat"] = "gigachat"
+    OPENAI_API_KEY: Optional[str] = None
+    HF_MODEL_NAME: str = "d0rj/Llama-3-8B-saiga-suzume-ties"
+    GIGA_MODEL_NAME: str = "GigaChat"
+    SB_AUTH_DATA: Optional[str] = None
+    GIGACHAT_CREDENTIALS: Optional[str] = None
+
 class DocumentStoreConfig(BaseSettings):
     DOCUMENT_STORE_EMBEDDINGS_DIM: int = 1024
     DOCUMENT_STORE_BATCH_SIZE: int = 32
     DOCUMENT_STORE_SIMILARITY: Literal['cosine', 'euclidean', 'dotproduct'] = "cosine"
-    
+
 class DocumentEmbedderConfig(BaseSettings):
     DOC_EMBEDDER_PRECISION: Literal['float32', 'int8', 'uint8', 'binary', 'ubinary'] = "float32"
     DOC_EMBEDDER_PROGRESS_BAR: bool = True
@@ -46,6 +53,7 @@ class PineconeConfig(BaseSettings):
 class Settings(
     LoggerConfig,
     AppConfig,
+    LLMConfig,
     DocumentRetrieverConfig,
     DocumentIndexerConfig,
     PineconeConfig,
