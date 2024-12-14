@@ -14,7 +14,7 @@ class SearchEngine:
 
     def search(self, query: str, n: int = 5, filters: dict = None):
         logger.info(f"Начало поиска по запросу: '{query}'")
-        query_embedding = self.text_embedder.run(query)['embedding']
+        query_embedding = self.text_embedder.run(text=query)['embedding']
         retrieved_documents = self.document_retriever.retrieve(query_embedding, top_k=n, filters=filters)
 
         formatted_retrieved_documents = []

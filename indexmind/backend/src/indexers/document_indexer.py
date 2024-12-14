@@ -11,18 +11,24 @@ from config import settings
 from src.stores.document_store import get_document_store
 from src.embedders.document_embedder import get_document_embedder
 from src.utils.helpers import hash_content
+from src.indexers.base_indexer import BaseIndexer
 
-class DocumentIndexer:
+class DocumentIndexer(BaseIndexer):
     def __init__(self):
         self.document_store = get_document_store()
         self.document_embedder = get_document_embedder()
 
     def add_indexes(self, file_paths: List[str]):
+        """Implements BaseIndexer.add_indexes"""
         logger.info(f"Добавление {len(file_paths)} файлов в очередь на индексацию.")
         documents_to_add = []
 
         for file_path in file_paths:
             try:
+                if not os.path.exists(file_path):
+                    logger.warning(f"Файл {file_path} не существует")
+                    continue
+
                 if self.document_store.filter_documents(filters={
                     "field": "meta.file_path",
                     "operator": "==",
@@ -39,36 +45,40 @@ class DocumentIndexer:
                 pending_documents = self._create_documents(blocks, file_path, metadata)
                 documents_to_add.extend(pending_documents)
                 logger.info(f"Подготовлено {len(pending_documents)} документов из файла {file_path}.")
+                if documents_to_add:
+                    self.document_store.write_documents(documents_to_add, policy=DuplicatePolicy.OVERWRITE)
+                    logger.info(f"Добавлено {len(documents_to_add)} документов в хранилище.")
             except Exception as e:
                 logger.error(f"Ошибка при добавлении файла {file_path}: {e}")
+                raise RuntimeError(f"Ошибка при добавлении файла {file_path}: {str(e)}") from e
 
-        if documents_to_add:
-            self.document_store.write_documents(documents_to_add, policy=DuplicatePolicy.OVERWRITE)
-            logger.info(f"Добавлено {len(documents_to_add)} документов в хранилище.")
-            
     def update_indexes(self):
-        logger.info("Проверяем обновления существующих проиндексированных документов...")
-        self.reindex_changed_files()
-        logger.info("Обновление завершено, начато создание индексов для новых файлов.")
-        pending_documents = self.document_store.filter_documents(filters={
-                "operator": "AND",
-                "conditions": [
-                    {"field": "meta.status", "operator": "==", "value": "pending"}                ]
-            }
-        )
-        logger.info(f"Найдено {len(pending_documents)} текстовых документов со статусом 'pending'.")
+        """Implements BaseIndexer.update_indexes"""
+        try:
+            logger.info("Проверяем обновления существующих проиндексированных документов...")
+            self.reindex_changed_files()
+            logger.info("Обновление завершено, начато создание индексов для новых файлов.")
+            pending_documents = self.document_store.filter_documents(filters={
+                    "operator": "AND",
+                    "conditions": [
+                        {"field": "meta.status", "operator": "==", "value": "pending"}                ]
+                }
+            )
+            logger.info(f"Найдено {len(pending_documents)} текстовых документов со статусом 'pending'.")
 
-        if not pending_documents:
-            logger.info("Нет документов для обновления.")
-            return
+            if not pending_documents:
+                logger.info("Нет документов для обновления.")
+                return
 
-        processed_documents = self.document_embedder.run(pending_documents)['documents']
-        for doc in processed_documents:
-            doc.meta['status'] = 'ready'
+            processed_documents = self.document_embedder.run(pending_documents)['documents']
+            for doc in processed_documents:
+                doc.meta['status'] = 'ready'
 
-        self.document_store.write_documents(processed_documents, policy=DuplicatePolicy.OVERWRITE)
-        logger.info("Обновление индексов завершено.")
-        
+            self.document_store.write_documents(processed_documents, policy=DuplicatePolicy.OVERWRITE)
+            logger.info("Обновление индексов завершено.")
+        except Exception as e:
+            logger.error(f"Ошибка при обновлении индексов: {e}")
+            raise RuntimeError(f"Ошибка при обновлении индексов: {str(e)}") from e
         
     def reindex_changed_files(self):
         """
