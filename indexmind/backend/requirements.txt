@@ -22,3 +22,5 @@ pinecone-haystack
 langchain
 langchain-community
 gigachat
+
+PyMuPDF==1.23.8

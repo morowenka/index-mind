@@ -5,20 +5,22 @@ import asyncio
 from typing import List
 from src.indexers.document_indexer import DocumentIndexer
 from src.indexers.image_indexer import ImageIndexer
+from src.indexers.pdf_indexer import PDFIndexer
 from src.utils.logger import logger
-from schemas.file_types import DocumentFile, ImageFile
+from schemas.file_types import DocumentFile, ImageFile, PDFFile
 import traceback
 import json
 
-FILE_TYPES = [DocumentFile, ImageFile]
+FILE_TYPES = [DocumentFile, ImageFile, PDFFile]
 
 class IndexManager:
     def __init__(self):
         self.indexers = {
             'document': DocumentIndexer(),
-            'image': ImageIndexer()
+            'image': ImageIndexer(),
+            'pdf': PDFIndexer()
         }
-        
+
     def delete_all_documents(self):
         logger.info("Начало удаления всех документов из хранилища.")
         try:
@@ -30,9 +32,7 @@ class IndexManager:
                     logger.error(f"Ошибка при очистке индексов для {indexer_key}: {e}")
             logger.info("Удаление всех документов завершено.")
         except Exception as e:
-            error_trace = traceback.format_exc()
             logger.error(f"Ошибка при удалении документов: {e}")
-# sourcery skip: raise-specific-error
             raise Exception(f"Не удалось удалить все документы: {e}") from e
 
     async def add_indexes_async(self, file_paths: List[str], manager):

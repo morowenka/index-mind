@@ -14,3 +14,6 @@ class ImageFile(BaseFileType):
     extensions = []
     indexer_key = 'image'
 
+class PDFFile(BaseFileType):
+    extensions = ['.pdf']
+    indexer_key = 'pdf'
