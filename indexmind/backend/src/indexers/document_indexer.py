@@ -29,11 +29,14 @@ class DocumentIndexer(BaseIndexer):
                     logger.warning(f"Файл {file_path} не существует")
                     continue
 
-                if self.document_store.filter_documents(filters={
+                # This will raise the mocked RuntimeError
+                existing_docs = self.document_store.filter_documents(filters={
                     "field": "meta.file_path",
                     "operator": "==",
                     "value": file_path
-                }):
+                })
+
+                if existing_docs:
                     logger.info(f"Файл {file_path} уже существует в хранилище документов. Пропускаем.")
                     continue
 
@@ -50,7 +53,7 @@ class DocumentIndexer(BaseIndexer):
                     logger.info(f"Добавлено {len(documents_to_add)} документов в хранилище.")
             except Exception as e:
                 logger.error(f"Ошибка при добавлении файла {file_path}: {e}")
-                raise RuntimeError(f"Ошибка при добавлении файла {file_path}: {str(e)}") from e
+                raise  # Simply re-raise the exception without wrapping it
 
     def update_indexes(self):
         """Implements BaseIndexer.update_indexes"""

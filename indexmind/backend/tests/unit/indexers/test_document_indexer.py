@@ -136,5 +136,7 @@ def test_error_handling(mock_document_store):
     indexer = DocumentIndexer()
     mock_document_store.filter_documents.side_effect = RuntimeError("Test error")
     
-    with pytest.raises(RuntimeError, match="Test error"):
-        indexer.add_indexes(["/test/file.txt"])
+    with patch('os.path.exists') as mock_exists:
+        mock_exists.return_value = True  # Make file existence check pass
+        with pytest.raises(RuntimeError, match="Test error"):
+            indexer.add_indexes(["/test/file.txt"])
