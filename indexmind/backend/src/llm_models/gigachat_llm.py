@@ -10,6 +10,7 @@ class GigaChatLLM(BaseLLM):
         """
         Инициализация GigaChat через LangChain.
         """
+        self._system_prompt = self._create_system_prompt()
         try:
             giga_key = settings.SB_AUTH_DATA
             if not giga_key:
@@ -22,6 +23,16 @@ class GigaChatLLM(BaseLLM):
         except Exception as e:
             logger.error(f"Ошибка инициализации GigaChat: {e}")
             self.giga_chat = None
+            
+    def _create_system_prompt(self) -> str:
+        """
+        Создание системного запроса для GigaChat.
+        """
+        return '''
+    Ты - чат-бот, который отвечает на вопросы. У тебя есть 5 блоков контекста с информацией, которую ты можешь использовать для ответа на вопросы. 
+    Информацию можно использовать ТОЛЬКО из этого контекста, придумывать свою информацию нельзя.
+    Если вопрос не имеет ответа в текущем контексте, скажи, что не знаешь.
+    '''
 
     def generate(self, query: str, context: str) -> str:
         """
@@ -31,10 +42,9 @@ class GigaChatLLM(BaseLLM):
             return "GigaChat не инициализирован."
 
         try:
-            prompt = f"Вопрос: {query}\n\nКонтекст: {context}"
-            logger.info(f"Отправка запроса в GigaChat с промптом: {prompt}")
-            response = self.giga_chat.predict(text=prompt)
-            return response
+            prompt = f"{self._system_prompt}\n\nВопрос: {query}\n\nКонтекст: {context}"
+            logger.info("Отправка запроса в GigaChat") 
+            return self.giga_chat.predict(text=prompt)
         except Exception as e:
             logger.error(f"Ошибка генерации через GigaChat: {e}")
             return "Извините, не удалось получить ответ от GigaChat."

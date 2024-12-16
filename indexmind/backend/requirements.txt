@@ -4,7 +4,6 @@ pytest
 pydantic<2
 urllib3<2
 nomkl
-pyobjc-framework-Cocoa
 
 fastapi
 uvicorn
@@ -16,7 +15,6 @@ transformers
 accelerate
 
 haystack_ai
-
 pinecone-haystack
 
 langchain

@@ -61,6 +61,10 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
     var metadataStackView: NSStackView!
     var webSocketTask: URLSessionWebSocketTask?
     let urlSession = URLSession(configuration: .default)
+    
+    // Хранение диапазона для "думаю..." и спиннера, чтобы потом заменить на ответ
+    var thinkingRange: NSRange?
+    var thinkingIndicatorAttachment: NSTextAttachment?
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -86,7 +90,7 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
         self.metadataScrollView.hasHorizontalScroller = false
         if let documentContentView = self.metadataStackView {
                self.metadataScrollView.documentView = documentContentView
-          }
+        }
     }
     
     func displayMetadata(_ documents: [RetrievedDocument]) {
@@ -177,7 +181,6 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
         }
     }
 
-    /// Форматирует метку времени, удаляя +0000
     @objc func formatDate(timestamp: Int) -> String {
         let date = Date(timeIntervalSince1970: TimeInterval(timestamp))
         let dateFormatter = DateFormatter()
@@ -263,16 +266,20 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
             return
         }
 
-        // Очищаем строку поиска только один раз
+        // Очищаем строку поиска
         searchField.stringValue = ""
         
         self.view.window?.makeFirstResponder(chatTextView)
         
+        // Отображаем запрос пользователя сразу
+        appendUserQueryInChatView(query: query)
+        
+        // Добавляем индикатор "думаю..."
+        showThinkingIndicator()
+        
         // Отправляем запрос
         let searchRequest = SearchRequest(query: query, n: 5, filters: nil)
-        
         performSearch(request: searchRequest)
-        
     }
     
     func performSearch(request: SearchRequest) {
@@ -296,12 +303,17 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
                     print("❌ Search Request Error: \(error.localizedDescription)")
                     DispatchQueue.main.async {
                         self?.showAlert(message: "Search Error: \(error.localizedDescription)")
+                        // Обновляем индикатор "думаю..." на сообщение об ошибке (если надо)
+                        self?.updateThinkingIndicator(with: "Ошибка при получении ответа!")
                     }
                     return
                 }
 
                 guard let data = data else {
                     print("❌ No data received")
+                    DispatchQueue.main.async {
+                        self?.updateThinkingIndicator(with: "Ошибка: пустой ответ")
+                    }
                     return
                 }
 
@@ -316,8 +328,8 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
                     
                     DispatchQueue.main.async { [weak self] in
                         guard let self = self else { return }
-                        self.updateChatView(userQuery: request.query,
-                                            machineResponse: searchResponse.response)
+                        // Обновляем "думаю..." на реальный ответ от модели
+                        self.updateThinkingIndicator(with: searchResponse.response)
                         
                         // Новый вызов для отображения метаданных
                         if let retrievedDocuments = searchResponse.retrieved_documents {
@@ -327,6 +339,7 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
                 } catch {
                     print("❌ Decoding Error: \(error)")
                     DispatchQueue.main.async {
+                        self?.updateThinkingIndicator(with: "Ошибка декодирования ответа")
                         self?.showAlert(message: "Error decoding search response: \(error)")
                     }
                 }
@@ -335,39 +348,63 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
         } catch {
             print("❌ JSON Encoding Error: \(error)")
             showAlert(message: "Error preparing search request: \(error.localizedDescription)")
+            updateThinkingIndicator(with: "Ошибка подготовки запроса")
         }
     }
 
-    func updateChatView(userQuery: String, machineResponse: String) {
+    // Немедленно добавить запрос пользователя
+    func appendUserQueryInChatView(query: String) {
         let attributedText = NSMutableAttributedString()
-
         let userStyle: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.systemBlue,
             .font: NSFont.boldSystemFont(ofSize: 14)
         ]
-
-        let machineStyle: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor.systemGreen,
+        attributedText.append(NSAttributedString(string: "👤 \(query)\n", attributes: userStyle))
+        
+        let currentAttributedText = chatTextView.textStorage
+        currentAttributedText?.append(attributedText)
+        
+        chatTextView.scrollRangeToVisible(NSRange(location: (currentAttributedText?.length ?? 0), length: 0))
+    }
+    
+    // Показать "думаю..." и спиннер
+    func showThinkingIndicator() {
+        let currentAttributedText = chatTextView.textStorage ?? NSTextStorage()
+        
+        // Стиль для "думаю..."
+        let machineThinkingStyle: [NSAttributedString.Key: Any] = [
+            .foregroundColor: NSColor.systemGray,
             .font: NSFont.systemFont(ofSize: 14)
         ]
+        
+        let thinkingText = NSAttributedString(string: "🤖 думаю...\n", attributes: machineThinkingStyle)
+        currentAttributedText.append(thinkingText)
+        
+        // Сохраняем диапазон для дальнейшей замены
+        self.thinkingRange = NSRange(location: currentAttributedText.length - thinkingText.length, length: thinkingText.length)
+        
+        chatTextView.scrollRangeToVisible(NSRange(location: currentAttributedText.length, length: 0))
+    }
 
-        attributedText.append(NSAttributedString(string: "👤 \(userQuery)\n", attributes: userStyle))
+    func updateThinkingIndicator(with response: String) {
+        guard let currentText = chatTextView.textStorage else { return }
 
-        let currentAttributedText = chatTextView.textStorage
-        currentAttributedText?.append(attributedText) // Добавляем запрос пользователя сразу
+        let fullString = currentText.string
+        if let range = self.thinkingRange {
+            // Удаляем "думаю..."
+            currentText.replaceCharacters(in: range, with: "")
+        }
 
-        chatTextView.scrollRangeToVisible(NSRange(location: attributedText.length, length: 0))
-
-        // Анимация для появления ответа машины
-        let machineResponseString = "🤖 \(machineResponse)\n\n"
+        // Теперь постепенно добавляем ответ от модели
+        let machineResponseString = "🤖 \(response)\n\n"
         var currentIndex = 0
-
-        Timer.scheduledTimer(withTimeInterval: 0.005, repeats: true) { timer in
+        let timer = Timer.scheduledTimer(withTimeInterval: 0.005, repeats: true) { [weak self] timer in
+            guard let self = self else { return }
             guard currentIndex < machineResponseString.count else {
                 timer.invalidate()
                 return
             }
-
+            
             let index = machineResponseString.index(machineResponseString.startIndex, offsetBy: currentIndex)
             let char = String(machineResponseString[index])
 
@@ -377,13 +414,14 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
             ]
 
             let attributedChar = NSAttributedString(string: char, attributes: charAttributes)
-            currentAttributedText?.append(attributedChar)
+            currentText.append(attributedChar)
 
-            let range = NSRange(location: currentAttributedText?.length ?? 0, length: 0)
+            let range = NSRange(location: currentText.length, length: 0)
             self.chatTextView.scrollRangeToVisible(range)
 
             currentIndex += 1
         }
+        RunLoop.current.add(timer, forMode: .common)
     }
 
 
@@ -407,9 +445,6 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
     }
     
     // MARK: - Backend Request Methods
-    
-    /// Отправка выбранных папок на бэкэнд для индексации
-    // MARK: - Remove Start Alert and Reset Progress Bar in sendFoldersToBackend
     func sendFoldersToBackend(_ folders: [String]) {
         guard !folders.isEmpty else {
             showAlert(message: "Не выбрано ни одной папки для индексации.")
@@ -458,7 +493,6 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
         task.resume()
     }
 
-    /// Отправка запроса на обновление индексов
     func sendUpdateIndexesRequest() {
         guard let url = URL(string: "http://127.0.0.1:8000/update_indexes") else {
             showAlert(message: "Ошибка: Неверный URL бэкэнда.")
@@ -495,7 +529,6 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
                     return
                 }
                 
-                // Предполагается, что сервер сразу возвращает "Index updating started"
                 self?.progressIndicator.isIndeterminate = false
             }
         }
@@ -507,10 +540,8 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             
-            // Show/hide currentFileLabel only during indexing
             self.currentFileLabel.isHidden = false
             
-            // Rest of the existing handleProgressUpdate logic remains the same
             if let total = update.total_files {
                 self.progressIndicator.minValue = 0
                 self.progressIndicator.maxValue = Double(total)
@@ -592,8 +623,6 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
 
     override func viewDidAppear() {
         super.viewDidAppear()
-        
-        // Add additional error tracking
         NotificationCenter.default.addObserver(self, selector: #selector(handleTerminationError), name: NSNotification.Name("NSErrorNotification"), object: nil)
     }
 

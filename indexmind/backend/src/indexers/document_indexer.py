@@ -30,19 +30,28 @@ class DocumentIndexer(BaseIndexer):
                     continue
 
                 # This will raise the mocked RuntimeError
-                existing_docs = self.document_store.filter_documents(filters={
+                if existing_docs := self.document_store.filter_documents(filters={
                     "field": "meta.file_path",
                     "operator": "==",
                     "value": file_path
-                })
-
-                if existing_docs:
+                }):
                     logger.info(f"Файл {file_path} уже существует в хранилище документов. Пропускаем.")
                     continue
 
                 logger.info(f"Обработка файла {file_path}.")
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    content = f.read()
+                encodings = ['utf-8', 'windows-1251', 'latin-1', 'cp1252']
+                content = None
+                for encoding in encodings:
+                    try:
+                        with open(file_path, 'r', encoding=encoding) as f:
+                            content = f.read()
+                        break
+                    except UnicodeDecodeError:
+                        continue
+                if content is None:
+                    logger.error(f"Не удалось прочитать файл {file_path} ни в одной из доступных кодировок: {encodings}")
+                    continue
+                
                 metadata = self._get_file_metadata(file_path, content)
                 blocks = self._split_content(content)
                 pending_documents = self._create_documents(blocks, file_path, metadata)

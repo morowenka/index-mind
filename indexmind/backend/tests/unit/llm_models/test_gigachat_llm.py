@@ -44,10 +44,18 @@ def test_gigachat_initialization_error(mock_settings):
 def test_generate_success(mock_settings, mock_gigachat):
     """Test successful text generation"""
     llm = GigaChatLLM()
-    response = llm.generate("test question", "test context")
+    query = "test question"
+    context = "test context"
+    
+    response = llm.generate(query, context)
     
     # Verify GigaChat.predict called correctly
-    expected_prompt = "Вопрос: test question\n\nКонтекст: test context"
+    system_prompt = '''
+    Ты - чат-бот, который отвечает на вопросы. У тебя есть 5 блоков контекста с информацией, которую ты можешь использовать для ответа на вопросы. 
+    Информацию можно использовать ТОЛЬКО из этого контекста, придумывать свою информацию нельзя.
+    Если вопрос не имеет ответа в текущем контексте, скажи, что не знаешь.
+    '''
+    expected_prompt = f"{system_prompt}\n\nВопрос: {query}\n\nКонтекст: {context}"
     mock_gigachat.predict.assert_called_once_with(text=expected_prompt)
     assert response == "test response"
 
