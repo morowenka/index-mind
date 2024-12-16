@@ -1,0 +1,34 @@
+# Используем другую версию базового образа и не slim
+FROM python:3.12
+
+WORKDIR /app
+
+# Множественные RUN команды вместо их объединения - создает лишние слои (и без обчистки мусора apt-get clean)
+RUN apt-get update
+RUN apt-get install -y gcc python3-dev
+RUN apt-get install -y vim nano curl wget git htop
+RUN apt-get install -y nodejs npm
+RUN npm install -g nodemon
+
+# Переменные окружения разбросаны по разным слоям
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+ENV DEBUG=1
+ENV PROD=false
+
+# Копируем все подряд, включая ненужные файлы
+COPY . .
+RUN chmod -R 777 /app
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Создаем директории с правами на запись для всех
+RUN mkdir -p /data /logs /temp
+RUN chmod 777 /data /logs /temp
+
+# Открываем множество портов, даже если они не используются (или вовсе не указываем expose)
+EXPOSE 8000 8080 5000 3000
+
+# Запускаем от пользователя root
+ENTRYPOINT ["uvicorn"]
+CMD ["app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
