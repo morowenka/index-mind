@@ -1,4 +1,3 @@
-
 # Базовый образ, slim и с фиксированной версией
 FROM python:3.9-slim
 
@@ -9,7 +8,7 @@ ENV PYTHONUNBUFFERED=1
 
 # Установка системных зависимостей с очисткой мусора
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends gcc python3-dev && \
+    apt-get install -y --no-install-recommends gcc python3-dev curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -42,7 +41,7 @@ VOLUME ["/app/data", "/app/config", "/app/logs"]
 
 # Проверка здоровья
 HEALTHCHECK --interval=30s --timeout=3s \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/health | grep -q '"status":"healthy"' || exit 1
 
 # Открываем только один порт, который реально используется
 EXPOSE 8000

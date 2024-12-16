@@ -72,3 +72,7 @@ def delete_all_documents():
     except Exception as e:
         logger.error(f"Ошибка при удалении всех документов: {e}")
         raise HTTPException(status_code=500, detail=str(e)) from e
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
