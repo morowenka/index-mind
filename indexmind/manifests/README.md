@@ -26,6 +26,3 @@ UI кубера намного удобнее, чем консоль..
 
 можно посмотреть пароль в секрете )
 ![alt text](images/image-6.png)
-
-Error while trying to initialise the database: An exception occurred while executing a query: SQLSTATE[42501]: Insufficient privilege: 7 ERROR:  permission denied for table oc_migrations
-![alt text](images/image52.png)
