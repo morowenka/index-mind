@@ -197,7 +197,7 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
     
     // MARK: - WebSocket Setup
     func setupWebSocket() {
-        guard let url = URL(string: "ws://localhost:8000/ws/progress") else {
+        guard let url = URL(string: "ws://backend:8000/ws/progress") else {
             showAlert(message: "Invalid WebSocket URL.")
             return
         }
@@ -261,7 +261,7 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
 
         let query = searchField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        if (query.isEmpty) {
+        if query.isEmpty {
             showAlert(message: "Пожалуйста, введите запрос для поиска.")
             return
         }
@@ -283,7 +283,7 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
     }
     
     func performSearch(request: SearchRequest) {
-        guard let url = URL(string: "http://localhost:8000/search") else {
+        guard let url = URL(string: "http://backend:8000/search") else {
             showAlert(message: "Invalid backend URL.")
             return
         }
@@ -451,7 +451,7 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
             return
         }
         
-        guard let url = URL(string: "http://localhost:8000/add_indexes") else {
+        guard let url = URL(string: "http://backend:8000/add_indexes") else {
             showAlert(message: "Ошибка: Неверный URL бэкэнда.")
             return
         }
@@ -494,7 +494,7 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
     }
 
     func sendUpdateIndexesRequest() {
-        guard let url = URL(string: "http://localhost:8000/update_indexes") else {
+        guard let url = URL(string: "http://backend:8000/update_indexes") else {
             showAlert(message: "Ошибка: Неверный URL бэкэнда.")
             return
         }
@@ -586,7 +586,7 @@ class MainViewController: NSViewController, NSSearchFieldDelegate {
     }
 
     @IBAction func deleteAllIndexesButtonClicked(_ sender: Any) {
-        guard let url = URL(string: "http://localhost:8000/delete_all_documents") else {
+        guard let url = URL(string: "http://backend:8000/delete_all_documents") else {
             showAlert(message: "Ошибка: Неверный URL бэкэнда.")
             return
         }
