@@ -166,3 +166,4 @@ cython_debug/
 .zed
 /indexmind/backend/data/*
 .vscode/
+/indexmind/frontend/IndexMindApp/.build
