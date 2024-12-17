@@ -25,26 +25,14 @@ COPY schemas/ schemas/
 COPY config/ config/
 COPY app.py .
 COPY pytest.ini .
-COPY .env .env
-
-RUN export $(cat .env | xargs)
-
-# Запуск тестов во время сборки
-RUN pip install pytest && pytest
 
 # Создаем и переключаемся на пользователя без прав root
 RUN adduser --disabled-password --gecos '' appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-VOLUME ["/app/data", "/app/config", "/app/logs"]
+# Документируем порт из переменной среды
+EXPOSE ${PORT:-8000}
 
-# Проверка здоровья
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD curl -f http://localhost:8000/health | grep -q '"status":"healthy"' || exit 1
-
-# Открываем только один порт, который реально используется
-EXPOSE 8000
-
-ENTRYPOINT ["uvicorn"]
-CMD ["app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+# Используем переменную окружения PORT с дефолтным значением 8000
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]

@@ -166,3 +166,7 @@ cython_debug/
 .zed
 /indexmind/backend/data/*
 .vscode/
+.DS_Store
+
+indexmind/secret-postgres.yaml
+indexmind/secret-backend.yaml

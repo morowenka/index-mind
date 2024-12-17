@@ -1,0 +1,95 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-backend-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-storage
+  local:
+    path: /data/backend
+  nodeAffinity: # этот PV доступен только на узле с именем minikube
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values:
+                - "minikube"
+
+---
+
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: local-backend-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+  storageClassName: local-storage
+
+---
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+  labels:
+    app: backend
+    tier: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+        tier: backend
+    spec:
+      # Init-контейнер для тестов
+      initContainers:
+        - name: backend-tests
+          image: indexmind-backend:0.12
+          command: ["pytest", "--maxfail=0", "--disable-warnings"]
+          envFrom:
+            - secretRef:
+                name: backend-secret
+
+      containers:
+        - name: backend
+          image: indexmind-backend:0.12
+          env:
+            - name: PORT
+              value: "8000"  # приложение внутри на 8000, но на уровне сервиса порт будет другой
+          ports:
+            - containerPort: 8000 # контейнер на 8000 порту работает
+          envFrom:
+            - secretRef:
+                name: backend-secret
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 300
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 300
+            periodSeconds: 10
+          volumeMounts:
+            - name: backend-data
+              mountPath: /app/data
+      
+      volumes:
+        - name: backend-data
+          persistentVolumeClaim:
+            claimName: local-backend-pvc
